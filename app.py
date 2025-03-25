@@ -8,7 +8,7 @@ import os
 app = Flask(__name__)
 
 # ========== UNZIP MODEL ==========
-zip_path = "model.zip"
+zip_path = "Model.zip"  # <-- اسم الملف زي ما هو
 extracted_model_path = "model.pkl"
 
 if not os.path.exists(extracted_model_path):
