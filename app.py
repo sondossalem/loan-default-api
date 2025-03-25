@@ -7,19 +7,17 @@ import os
 
 app = Flask(__name__)
 
-# ========== UNZIP MODEL ==========
-zip_path = "Model.zip"  # <-- اسم الملف زي ما هو
-extracted_model_path = "model.pkl"
-
-if not os.path.exists(extracted_model_path):
-    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+# Step 1: Extract the model file from Model.zip
+model_filename = "xgb_pipeline_model.pkl"
+if not os.path.exists(model_filename):  # فقط إذا ما تم فك الضغط سابقاً
+    with zipfile.ZipFile("Model.zip", 'r') as zip_ref:
         zip_ref.extractall()
 
-# ========== LOAD MODEL ==========
-with open(extracted_model_path, "rb") as f:
+# Step 2: Load the model
+with open(model_filename, "rb") as f:
     model = pickle.load(f)
 
-# ========== EXPECTED COLUMNS ==========
+# Expected input columns
 expected_columns = [
     "loan_amnt", "term", "int_rate", "sub_grade", "home_ownership", "annual_inc",
     "verification_status", "purpose", "dti", "open_acc", "pub_rec", "revol_util",
@@ -37,7 +35,6 @@ def predict():
         data = request.get_json()
         input_df = pd.DataFrame([data])
 
-        # Validate input
         for col in expected_columns:
             if col not in input_df.columns:
                 return jsonify({"error": f"Missing column: {col}"}), 400
