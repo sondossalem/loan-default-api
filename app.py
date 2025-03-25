@@ -1,16 +1,25 @@
-
 from flask import Flask, request, jsonify
 import pickle
 import numpy as np
 import pandas as pd
+import zipfile
+import os
 
 app = Flask(__name__)
 
-# Load the model
-with open("model.pkl", "rb") as f:
+# ========== UNZIP MODEL ==========
+zip_path = "model.zip"
+extracted_model_path = "model.pkl"
+
+if not os.path.exists(extracted_model_path):
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        zip_ref.extractall()
+
+# ========== LOAD MODEL ==========
+with open(extracted_model_path, "rb") as f:
     model = pickle.load(f)
 
-# Define the expected input columns
+# ========== EXPECTED COLUMNS ==========
 expected_columns = [
     "loan_amnt", "term", "int_rate", "sub_grade", "home_ownership", "annual_inc",
     "verification_status", "purpose", "dti", "open_acc", "pub_rec", "revol_util",
@@ -28,12 +37,11 @@ def predict():
         data = request.get_json()
         input_df = pd.DataFrame([data])
 
-        # Ensure all expected columns are present
+        # Validate input
         for col in expected_columns:
             if col not in input_df.columns:
                 return jsonify({"error": f"Missing column: {col}"}), 400
 
-        # Predict
         prediction = model.predict(input_df)[0]
         return jsonify({"prediction": int(prediction)})
 
