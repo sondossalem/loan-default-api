@@ -88,7 +88,7 @@ def predict():
 
         return jsonify({
             "prediction": prediction,
-            "risk_score": round(prob, 4),
+            "risk_score": float(round(prob, 4)),
             "risk_level": risk_level
         })
 
