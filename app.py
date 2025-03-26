@@ -37,7 +37,8 @@ final_columns = [
     'purpose_wedding', 'initial_list_status_w', 'application_type_INDIVIDUAL',
     'application_type_JOINT', 'zip_code_05113', 'zip_code_11650',
     'zip_code_22690', 'zip_code_29597', 'zip_code_30723', 'zip_code_48052',
-    'zip_code_70466', 'zip_code_86630', 'zip_code_93700']
+    'zip_code_70466', 'zip_code_86630', 'zip_code_93700'
+]
 
 @app.route("/")
 def home():
@@ -49,9 +50,11 @@ def predict():
         raw_data = request.get_json()
         df = pd.DataFrame([raw_data])
 
-        # خطوات التجهيز المسبق (نفس خطوات التدريب)
+        # تجهيز البيانات
         df['term'] = df['term'].str.extract(r'(\d+)').astype(int)
         df['home_ownership'] = df['home_ownership'].replace(['NONE', 'ANY'], 'OTHER')
+
+        # استخراج الأعمدة المحسوبة تلقائيًا
         df['credit_age'] = 2013 - pd.to_datetime(df['earliest_cr_line'], errors='coerce').dt.year
         df['zip_code'] = df['address'].apply(lambda x: x[-5:])
         df['issue_d'] = pd.to_datetime(df['issue_d'], format='%b-%Y')
@@ -63,22 +66,22 @@ def predict():
                      'earliest_cr_line', 'issue_d', 'address']
         df.drop(columns=drop_cols, inplace=True, errors='ignore')
 
-        # ترميز الأعمدة التصنيفية بنفس get_dummies مع drop_first=True
+        # الترميز
         categorical_cols = ['sub_grade', 'home_ownership', 'verification_status', 'purpose',
                             'initial_list_status', 'application_type', 'zip_code']
         df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
 
-        # ترتيب الأعمدة لتطابق التدريب
+        # مطابقة الأعمدة مع التدريب
         for col in final_columns:
             if col not in df:
                 df[col] = 0
         df = df[final_columns]
 
-        # توقع النتيجة واحتمالية التعثر
-        prob = model.predict_proba(df)[0][0]  # احتمال أن القرض يتعثر (label 0 = تعثر)
-        prediction = int(prob < 0.55)  # 1 = Fully Paid إذا احتمال التعثر منخفض
+        # التنبؤ
+        prob = model.predict_proba(df)[0][0]
+        prediction = int(prob < 0.55)
 
-        # تحليل مستوى الخطورة
+        # تصنيف الخطورة
         if prob < 0.3:
             risk_level = "Low Risk"
         elif prob < 0.6:
@@ -98,4 +101,3 @@ def predict():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
