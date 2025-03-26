@@ -54,14 +54,16 @@ def predict():
         df['term'] = df['term'].str.extract(r'(\d+)').astype(int)
         df['home_ownership'] = df['home_ownership'].replace(['NONE', 'ANY'], 'OTHER')
 
-        # استخراج الأعمدة المحسوبة تلقائيًا
+        # حساب الأعمدة المحسوبة
         df['credit_age'] = 2013 - pd.to_datetime(df['earliest_cr_line'], errors='coerce').dt.year
-        df['zip_code'] = df['address'].apply(lambda x: x[-5:])
         df['issue_d'] = pd.to_datetime(df['issue_d'], format='%b-%Y')
         df['loan_issue_year'] = df['issue_d'].dt.year
         df['loan_issue_month'] = df['issue_d'].dt.month
 
-        # حذف الأعمدة غير المستخدمة
+        # استخراج zip_code من العنوان (آخر 5 أرقام في نهاية العنوان)
+        df['zip_code'] = df['address'].str.extract(r'(\d{5})$')
+
+        # حذف الأعمدة غير المهمة للنموذج
         drop_cols = ['grade', 'emp_length', 'emp_title', 'title', 'revol_bal', 'pub_rec_bankruptcies',
                      'earliest_cr_line', 'issue_d', 'address']
         df.drop(columns=drop_cols, inplace=True, errors='ignore')
@@ -71,7 +73,7 @@ def predict():
                             'initial_list_status', 'application_type', 'zip_code']
         df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
 
-        # مطابقة الأعمدة مع التدريب
+        # مطابقة الأعمدة مع النموذج
         for col in final_columns:
             if col not in df:
                 df[col] = 0
@@ -81,7 +83,7 @@ def predict():
         prob = model.predict_proba(df)[0][0]
         prediction = int(prob < 0.55)
 
-        # تصنيف الخطورة
+        # مستوى الخطورة
         if prob < 0.3:
             risk_level = "Low Risk"
         elif prob < 0.6:
