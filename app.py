@@ -71,9 +71,13 @@ def predict():
                 df[col] = 0
         df = df[final_columns]
 
+        # حساب الاحتمالية باستخدام النموذج
         prob = model.predict_proba(df)[0][0]
-        prediction = int(prob < 0.55)
 
+        # تعديل منطق التنبؤ بناءً على الاحتمالية
+        prediction = int(prob >= 0.55)  # إذا كانت الاحتمالية أكثر من 0.55 سيتم اعتبارها "موافقة"، أما إذا كانت أقل، فهي "رفض"
+
+        # تحديد مستوى المخاطرة بناءً على الاحتمالية
         if prob < 0.3:
             risk_level = "Low Risk"
         elif prob < 0.6:
@@ -82,9 +86,9 @@ def predict():
             risk_level = "High Risk"
 
         return jsonify({
-            "prediction": prediction,
-            "risk_score": float(round(prob, 4)),
-            "risk_level": risk_level
+            "prediction": prediction,  # ستكون 0 أو 1 حسب الاحتمالية
+            "risk_score": float(round(prob, 4)),  # الاحتمالية المعروضة بشكل دقيق
+            "risk_level": risk_level  # مستوى المخاطرة المعتمد على الاحتمالية
         })
 
     except Exception as e:
