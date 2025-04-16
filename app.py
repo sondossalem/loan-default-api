@@ -79,8 +79,11 @@ def predict():
         df = df[final_columns]
 
         # استخدام النموذج للتنبؤ
-        prob = model.predict_proba(df)[0][1]  # نتوقع الفئة الموجبة (1)
-        prediction = int(prob > 0.5)  # إذا كانت الاحتمالية أكبر من 0.5 نعتبرها High Risk
+        prob = model.predict_proba(df)[0][1]  # نتوقع الفئة الموجبة (1) مع الاحتمالية
+        
+        # تطبيق العتبة لتحديد prediction
+        threshold = 0.35  # العتبة التي سيتم تحديدها
+        prediction = 0 if prob < threshold else 1  # إذا كانت الاحتمالية أقل من العتبة، نعتبرها Fully Paid (0)
 
         # تحديد مستوى المخاطر بناءً على الاحتمالية
         if prob < 0.3:
@@ -90,11 +93,11 @@ def predict():
         else:
             risk_level = "High Risk"
 
-        # إرجاع النتيجة
+        # إرجاع النتيجة مع risk_score
         return jsonify({
-            "prediction": prediction,
-            "risk_score": float(round(prob, 4)),
-            "risk_level": risk_level
+            "prediction": prediction,  # إذا كانت الاحتمالية أقل من العتبة، نعتبرها 0 (Fully Paid)
+            "risk_score": float(round(prob, 4)),  # العرض المباشر لـprob كـ risk_score
+            "risk_level": risk_level  # تصنيف المخاطر بناءً على الاحتمالية
         })
 
     except Exception as e:
