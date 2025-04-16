@@ -11,6 +11,7 @@ CORS(app)  # ✅ تفعيل CORS للسماح للواجهة تتواصل
 
 model_filename = "xgb_pipeline_model.pkl"
 
+# تحميل النموذج إذا لم يكن موجودًا
 if not os.path.exists(model_filename):
     with zipfile.ZipFile("Model.zip", 'r') as zip_ref:
         zip_ref.extractall()
@@ -18,6 +19,7 @@ if not os.path.exists(model_filename):
 with open(model_filename, "rb") as f:
     model = pickle.load(f)
 
+# الأعمدة المطلوبة في النموذج
 final_columns = [
     'loan_amnt', 'term', 'int_rate', 'annual_inc', 'dti', 'open_acc', 'pub_rec',
     'revol_util', 'mort_acc', 'credit_age', 'loan_issue_year', 'loan_issue_month',
@@ -46,9 +48,11 @@ def home():
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
+        # استلام البيانات من الواجهة
         raw_data = request.get_json()
         df = pd.DataFrame([raw_data])
 
+        # تنفيذ بعض المعالجات على البيانات
         df['term'] = df['term'].str.extract(r'(\d+)').astype(int)
         df['home_ownership'] = df['home_ownership'].replace(['NONE', 'ANY'], 'OTHER')
 
@@ -58,22 +62,27 @@ def predict():
         df['loan_issue_month'] = df['issue_d'].dt.month
         df['zip_code'] = df['address'].str.extract(r'(\d{5})$')
 
+        # حذف الأعمدة غير اللازمة
         drop_cols = ['grade', 'emp_length', 'emp_title', 'title', 'revol_bal', 'pub_rec_bankruptcies',
                      'earliest_cr_line', 'issue_d', 'address']
         df.drop(columns=drop_cols, inplace=True, errors='ignore')
 
+        # تحويل الأعمدة الفئوية إلى متغيرات دمية
         categorical_cols = ['sub_grade', 'home_ownership', 'verification_status', 'purpose',
                             'initial_list_status', 'application_type', 'zip_code']
         df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
 
+        # التأكد من أن كل الأعمدة المطلوبة موجودة
         for col in final_columns:
             if col not in df:
                 df[col] = 0
         df = df[final_columns]
 
-        prob = model.predict_proba(df)[0][0]
-        prediction = int(prob < 0.55)
+        # استخدام النموذج للتنبؤ
+        prob = model.predict_proba(df)[0][1]  # نتوقع الفئة الموجبة (1)
+        prediction = int(prob > 0.5)  # إذا كانت الاحتمالية أكبر من 0.5 نعتبرها High Risk
 
+        # تحديد مستوى المخاطر بناءً على الاحتمالية
         if prob < 0.3:
             risk_level = "Low Risk"
         elif prob < 0.6:
@@ -81,6 +90,7 @@ def predict():
         else:
             risk_level = "High Risk"
 
+        # إرجاع النتيجة
         return jsonify({
             "prediction": prediction,
             "risk_score": float(round(prob, 4)),
