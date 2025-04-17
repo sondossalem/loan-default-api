@@ -46,12 +46,26 @@ def home():
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
+        # استلام البيانات
         raw_data = request.get_json()
+        
+        # تحقق من أن البيانات المدخلة تحتوي على جميع الحقول المطلوبة
+        required_fields = ['loan_amnt', 'term', 'int_rate', 'annual_inc', 'dti', 'open_acc', 'pub_rec',
+                           'revol_util', 'mort_acc', 'credit_age', 'earliest_cr_line', 'issue_d', 'address', 
+                           'sub_grade', 'home_ownership', 'verification_status', 'purpose', 'initial_list_status', 
+                           'application_type', 'zip_code']
+        
+        missing_fields = [field for field in required_fields if field not in raw_data]
+        
+        if missing_fields:
+            return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
+        
+        # إنشاء DataFrame من البيانات المدخلة
         df = pd.DataFrame([raw_data])
-
+        
+        # القيام بالتحويلات على البيانات كما في الكود السابق
         df['term'] = df['term'].str.extract(r'(\d+)').astype(int)
         df['home_ownership'] = df['home_ownership'].replace(['NONE', 'ANY'], 'OTHER')
-
         df['credit_age'] = 2013 - pd.to_datetime(df['earliest_cr_line'], errors='coerce').dt.year
         df['issue_d'] = pd.to_datetime(df['issue_d'], format='%b-%Y')
         df['loan_issue_year'] = df['issue_d'].dt.year
