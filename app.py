@@ -11,6 +11,7 @@ CORS(app)  # ✅ تفعيل CORS للسماح للواجهة تتواصل
 
 model_filename = "xgb_pipeline_model.pkl"
 
+
 if not os.path.exists(model_filename):
     with zipfile.ZipFile("Model.zip", 'r') as zip_ref:
         zip_ref.extractall()
