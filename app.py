@@ -6,7 +6,7 @@ import pandas as pd
 import zipfile
 import os
 
-app = Flask(__name__)
+app = Flask(_name_)
 CORS(app)  # ✅ تفعيل CORS للسماح للواجهة تتواصل
 
 model_filename = "xgb_pipeline_model.pkl"
@@ -46,32 +46,16 @@ def home():
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
-        # استلام البيانات
         raw_data = request.get_json()
-
-        # تحقق من أن البيانات المدخلة تحتوي على جميع الحقول المطلوبة
-        required_fields = ['loan_amnt', 'term', 'int_rate', 'annual_inc', 'dti', 'open_acc', 'pub_rec',
-                           'revol_util', 'mort_acc', 'credit_age', 'earliest_cr_line', 'issue_d', 'address', 
-                           'sub_grade', 'home_ownership', 'verification_status', 'purpose', 'initial_list_status', 
-                           'application_type']
-
-        missing_fields = [field for field in required_fields if field not in raw_data]
-
-        if missing_fields:
-            return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 400
-
-        # إنشاء DataFrame من البيانات المدخلة
         df = pd.DataFrame([raw_data])
 
-        # القيام بالتحويلات على البيانات كما في الكود السابق
         df['term'] = df['term'].str.extract(r'(\d+)').astype(int)
         df['home_ownership'] = df['home_ownership'].replace(['NONE', 'ANY'], 'OTHER')
+
         df['credit_age'] = 2013 - pd.to_datetime(df['earliest_cr_line'], errors='coerce').dt.year
         df['issue_d'] = pd.to_datetime(df['issue_d'], format='%b-%Y')
         df['loan_issue_year'] = df['issue_d'].dt.year
         df['loan_issue_month'] = df['issue_d'].dt.month
-
-        # استخراج الرمز البريدي من العنوان
         df['zip_code'] = df['address'].str.extract(r'(\d{5})$')
 
         drop_cols = ['grade', 'emp_length', 'emp_title', 'title', 'revol_bal', 'pub_rec_bankruptcies',
@@ -87,29 +71,25 @@ def predict():
                 df[col] = 0
         df = df[final_columns]
 
-        # حساب الاحتمالية باستخدام النموذج
-        prob = model.predict_proba(df)[:, 1]  # أخذ الاحتمالية للفئة 1 (لن يدفع)
+        prob = model.predict_proba(df)[0][0]
+        prediction = int(prob < 0.55)
 
-        # تعديل منطق التنبؤ بناءً على الاحتمالية
-        prediction = int(prob[0] >= 0.45)  # إذا كانت الاحتمالية أكبر من أو تساوي 0.45 سيتم اعتبارها "موافقة"، أما إذا كانت أقل، فهي "رفض"
-
-        # تحديد مستوى المخاطرة بناءً على الاحتمالية
-        if prob[0] < 0.3:
+        if prob < 0.3:
             risk_level = "Low Risk"
-        elif prob[0] < 0.6:
+        elif prob < 0.6:
             risk_level = "Moderate Risk"
         else:
             risk_level = "High Risk"
 
         return jsonify({
-            "prediction": prediction,  # ستكون 0 أو 1 حسب الاحتمالية
-            "risk_score": float(round(prob[0], 4)),  # الاحتمالية المعروضة بشكل دقيق
-            "risk_level": risk_level  # مستوى المخاطرة المعتمد على الاحتمالية
+            "prediction": prediction,
+            "risk_score": float(round(prob, 4)),
+            "risk_level": risk_level
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
