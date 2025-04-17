@@ -11,14 +11,16 @@ CORS(app)  # ✅ تفعيل CORS للسماح للواجهة تتواصل
 
 model_filename = "xgb_pipeline_model.pkl"
 
-
+# التأكد من وجود النموذج
 if not os.path.exists(model_filename):
     with zipfile.ZipFile("Model.zip", 'r') as zip_ref:
         zip_ref.extractall()
 
+# تحميل النموذج
 with open(model_filename, "rb") as f:
     model = pickle.load(f)
 
+# الأعمدة التي تم تدريب النموذج عليها
 final_columns = [
     'loan_amnt', 'term', 'int_rate', 'annual_inc', 'dti', 'open_acc', 'pub_rec',
     'revol_util', 'mort_acc', 'credit_age', 'loan_issue_year', 'loan_issue_month',
@@ -50,6 +52,7 @@ def predict():
         raw_data = request.get_json()
         df = pd.DataFrame([raw_data])
 
+        # تحويل بعض الأعمدة
         df['term'] = df['term'].str.extract(r'(\d+)').astype(int)
         df['home_ownership'] = df['home_ownership'].replace(['NONE', 'ANY'], 'OTHER')
 
@@ -59,22 +62,29 @@ def predict():
         df['loan_issue_month'] = df['issue_d'].dt.month
         df['zip_code'] = df['address'].str.extract(r'(\d{5})$')
 
+        # حذف الأعمدة غير المهمة
         drop_cols = ['grade', 'emp_length', 'emp_title', 'title', 'revol_bal', 'pub_rec_bankruptcies',
                      'earliest_cr_line', 'issue_d', 'address']
         df.drop(columns=drop_cols, inplace=True, errors='ignore')
 
+        # التعامل مع الأعمدة التصنيفية
         categorical_cols = ['sub_grade', 'home_ownership', 'verification_status', 'purpose',
                             'initial_list_status', 'application_type', 'zip_code']
         df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
 
+        # إضافة الأعمدة المفقودة بالقيمة صفر
         for col in final_columns:
             if col not in df:
                 df[col] = 0
         df = df[final_columns]
 
-        prob = model.predict_proba(df)[0][0]
+        # أخذ الاحتمالية الخاصة بالفئة 1 (High Risk)
+        prob = model.predict_proba(df)[0][1]
+
+        # قرار التصنيف بناءً على الاحتمالية
         prediction = int(prob < 0.55)
 
+        # تحديد مستوى المخاطرة
         if prob < 0.3:
             risk_level = "Low Risk"
         elif prob < 0.6:
@@ -82,15 +92,17 @@ def predict():
         else:
             risk_level = "High Risk"
 
+        # إعادة النتيجة
         return jsonify({
             "prediction": prediction,
-            "risk_score": float(round(prob, 4)),
+            "risk_score": float(round(prob, 4)),  # احسب الـ risk score
             "risk_level": risk_level
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# تشغيل التطبيق
 if __name__ == "__main__":  # تم تصحيح _name_ إلى __name__
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
