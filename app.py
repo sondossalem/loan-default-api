@@ -72,14 +72,14 @@ def predict():
                             'initial_list_status', 'application_type', 'zip_code']
         df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
 
-        # إضافة الأعمدة المفقودة بالقيمة صفر
+        # إضافة الأعمدة المفقودة بالقيمة الافتراضية
         for col in final_columns:
             if col not in df:
                 df[col] = 0
         df = df[final_columns]
 
         # أخذ الاحتمالية الخاصة بالفئة 1 (High Risk)
-        prob = model.predict_proba(df)[0][1]
+        prob = model.predict_proba(df)[0][1]  # الحصول على الاحتمالية الفعلية للفئة 1
 
         # قرار التصنيف بناءً على الاحتمالية
         prediction = int(prob < 0.55)
