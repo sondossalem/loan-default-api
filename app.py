@@ -53,7 +53,7 @@ def predict():
         required_fields = ['loan_amnt', 'term', 'int_rate', 'annual_inc', 'dti', 'open_acc', 'pub_rec',
                            'revol_util', 'mort_acc', 'credit_age', 'earliest_cr_line', 'issue_d', 'address', 
                            'sub_grade', 'home_ownership', 'verification_status', 'purpose', 'initial_list_status', 
-                           'application_type', 'zip_code']
+                           'application_type']
         
         missing_fields = [field for field in required_fields if field not in raw_data]
         
@@ -70,6 +70,8 @@ def predict():
         df['issue_d'] = pd.to_datetime(df['issue_d'], format='%b-%Y')
         df['loan_issue_year'] = df['issue_d'].dt.year
         df['loan_issue_month'] = df['issue_d'].dt.month
+        
+        # استخراج الرمز البريدي من العنوان
         df['zip_code'] = df['address'].str.extract(r'(\d{5})$')
 
         drop_cols = ['grade', 'emp_length', 'emp_title', 'title', 'revol_bal', 'pub_rec_bankruptcies',
