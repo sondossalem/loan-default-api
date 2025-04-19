@@ -63,8 +63,8 @@ def predict():
 
         # تحقق من وجود جميع الأعمدة المطلوبة
         for col in expected_columns:
-            if col not in input_df.columns:
-                return jsonify({"error": f"Missing column: {col}"}), 400
+            if col not in input_df.columns or input_df[col].isnull().any():
+                return jsonify({"error": f"Missing or invalid column: {col}"}), 400
 
         # معالجة الأعمدة المدخلة
         input_df['term'] = input_df['term'].str.extract(r'(\d+)').astype(int)
@@ -76,7 +76,14 @@ def predict():
 
         # التحقق من وجود NaT في التواريخ
         if input_df['earliest_cr_line'].isnull().any() or input_df['issue_d'].isnull().any():
-            return jsonify({"error": "Invalid date format for 'earliest_cr_line' or 'issue_d'"}), 400
+            return jsonify({"error": "Invalid date format for 'earliest_cr_line' or 'issue_d'. Ensure the format is 'Month YYYY'."}), 400
+
+        # حساب العمر الائتماني بناءً على التاريخ المحول
+        input_df['credit_age'] = 2013 - input_df['earliest_cr_line'].dt.year
+
+        # استخراج السنة والشهر من issue_d
+        input_df['loan_issue_year'] = input_df['issue_d'].dt.year
+        input_df['loan_issue_month'] = input_df['issue_d'].dt.month
 
         # إضافة الأعمدة الفئوية باستخدام get_dummies
         categorical_cols = ['sub_grade', 'home_ownership', 'verification_status', 'purpose', 
