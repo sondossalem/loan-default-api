@@ -46,8 +46,13 @@ def home():
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
+        # استلام البيانات المدخلة
         raw_data = request.get_json()
         df = pd.DataFrame([raw_data])
+
+        # فحص القيم المفقودة في البيانات
+        if df.isnull().sum().any():
+            return jsonify({"error": "Missing data in required fields!"}), 400
 
         # تحويل 'term' إلى رقم باستخدام str.extract
         df['term'] = df['term'].str.extract(r'(\d+)').astype(int)
@@ -64,6 +69,7 @@ def predict():
                      'earliest_cr_line', 'address']
         df.drop(columns=drop_cols, inplace=True, errors='ignore')
 
+        # تحويل الأعمدة الفئوية
         categorical_cols = ['sub_grade', 'home_ownership', 'verification_status', 'purpose',
                             'initial_list_status', 'application_type', 'zip_code']
         df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
@@ -76,6 +82,11 @@ def predict():
 
         # حساب الاحتمال
         prob = model.predict_proba(df)[0][0]
+
+        # التحقق من وجود NaN في الاحتمال
+        if np.isnan(prob):
+            return jsonify({"error": "Invalid prediction result!"}), 400
+
         prediction = int(prob < 0.55)
 
         # تحديد مستوى المخاطرة بناءً على الاحتمال
