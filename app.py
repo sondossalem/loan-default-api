@@ -74,9 +74,9 @@ def predict():
         prob = model.predict_proba(df)[0][0]
         prediction = int(prob < 0.55)
 
-        if prob < 0.3:
+        if prob < 0.03:
             risk_level = "Low Risk"
-        elif prob < 0.6:
+        elif prob < 0.06:
             risk_level = "Moderate Risk"
         else:
             risk_level = "High Risk"
