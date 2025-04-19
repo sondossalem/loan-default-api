@@ -69,9 +69,16 @@ def predict():
         # خطوات التجهيز المسبق (نفس خطوات التدريب)
         input_df['term'] = input_df['term'].str.extract(r'(\d+)').astype(int)
         input_df['home_ownership'] = input_df['home_ownership'].replace(['NONE', 'ANY'], 'OTHER')
-        input_df['credit_age'] = 2013 - pd.to_datetime(input_df['earliest_cr_line'], errors='coerce').dt.year
+
+        # معالجة التواريخ المدخلة بتنسيق "Month YYYY"
+        input_df['earliest_cr_line'] = pd.to_datetime(input_df['earliest_cr_line'], format='%B %Y', errors='coerce')
+        input_df['issue_d'] = pd.to_datetime(input_df['issue_d'], format='%B %Y', errors='coerce')
+
+        # حساب العمر الائتماني بناءً على التاريخ المحول
+        input_df['credit_age'] = 2013 - input_df['earliest_cr_line'].dt.year
+
+        # استخراج الرمز البريدي
         input_df['zip_code'] = input_df['address'].apply(lambda x: x[-5:])
-        input_df['issue_d'] = pd.to_datetime(input_df['issue_d'], format='%b-%Y', errors='coerce')
         input_df['loan_issue_year'] = input_df['issue_d'].dt.year
         input_df['loan_issue_month'] = input_df['issue_d'].dt.month
 
