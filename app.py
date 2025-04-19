@@ -9,8 +9,10 @@ import os
 app = Flask(__name__)
 CORS(app)  # ✅ تفعيل CORS للسماح للواجهة تتواصل
 
+# اسم ملف الموديل داخل الملف المضغوط
 model_filename = "xgb_pipeline_model.pkl"
 
+# فك ضغط Model.zip لاستخراج الموديل إذا لم يكن موجودًا
 if not os.path.exists(model_filename):
     with zipfile.ZipFile("Model.zip", 'r') as zip_ref:
         zip_ref.extractall()
@@ -18,6 +20,15 @@ if not os.path.exists(model_filename):
 with open(model_filename, "rb") as f:
     model = pickle.load(f)
 
+# الأعمدة التي يتوقعها الموديل بالتحديد
+expected_columns = [
+    "loan_amnt", "term", "int_rate", "sub_grade", "home_ownership", "annual_inc",
+    "verification_status", "purpose", "dti", "open_acc", "pub_rec", "revol_util",
+    "initial_list_status", "application_type", "mort_acc", "loan_issue_year",
+    "loan_issue_month", "credit_age", "zip_code"
+]
+
+# الأعمدة التي تم ترميزها خلال التدريب (بعد get_dummies)
 final_columns = [
     'loan_amnt', 'term', 'int_rate', 'annual_inc', 'dti', 'open_acc', 'pub_rec',
     'revol_util', 'mort_acc', 'credit_age', 'loan_issue_year', 'loan_issue_month',
@@ -41,53 +52,43 @@ final_columns = [
 
 @app.route("/")
 def home():
-    return "Model API is running with preprocessing and risk analysis!"
+    return "Model API is running!"
 
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
         # استلام البيانات المدخلة
-        raw_data = request.get_json()
-        df = pd.DataFrame([raw_data])
+        data = request.get_json()
+        input_df = pd.DataFrame([data])
 
-        # فحص القيم المفقودة في البيانات
-        if df.isnull().sum().any():
-            return jsonify({"error": "Missing data in required fields!"}), 400
+        # تحقق من وجود جميع الأعمدة المطلوبة
+        for col in expected_columns:
+            if col not in input_df.columns:
+                return jsonify({"error": f"Missing column: {col}"}), 400
 
-        # تحويل 'term' إلى رقم باستخدام str.extract
-        df['term'] = df['term'].str.extract(r'(\d+)').astype(int)
+        # خطوات التجهيز المسبق (نفس خطوات التدريب)
+        input_df['term'] = input_df['term'].str.extract(r'(\d+)').astype(int)
+        input_df['home_ownership'] = input_df['home_ownership'].replace(['NONE', 'ANY'], 'OTHER')
+        input_df['credit_age'] = 2013 - pd.to_datetime(input_df['earliest_cr_line'], errors='coerce').dt.year
+        input_df['zip_code'] = input_df['address'].apply(lambda x: x[-5:])
+        input_df['issue_d'] = pd.to_datetime(input_df['issue_d'], format='%b-%Y')
+        input_df['loan_issue_year'] = input_df['issue_d'].dt.year
+        input_df['loan_issue_month'] = input_df['issue_d'].dt.month
 
-        # تحويل 'earliest_cr_line' إلى تاريخ واستخراج 'credit_age'
-        df['earliest_cr_line'] = pd.to_datetime(df['earliest_cr_line'], errors='coerce')
-        df['credit_age'] = 2013 - df['earliest_cr_line'].dt.year  # حساب العمر الائتماني بناءً على السنة
-
-        # استخراج 'zip_code' من 'address' (آخر 5 أرقام)
-        df['zip_code'] = df['address'].apply(lambda x: x[-5:])
-
-        # باقي العمليات على الأعمدة
-        drop_cols = ['grade', 'emp_length', 'emp_title', 'title', 'revol_bal', 'pub_rec_bankruptcies',
-                     'earliest_cr_line', 'address']
-        df.drop(columns=drop_cols, inplace=True, errors='ignore')
-
-        # تحويل الأعمدة الفئوية
-        categorical_cols = ['sub_grade', 'home_ownership', 'verification_status', 'purpose',
+        # تحويل الأعمدة التصنيفية إلى 1 و 0 باستخدام get_dummies
+        categorical_cols = ['sub_grade', 'home_ownership', 'verification_status', 'purpose', 
                             'initial_list_status', 'application_type', 'zip_code']
-        df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
+        input_df = pd.get_dummies(input_df, columns=categorical_cols, drop_first=True)
 
-        # التأكد من أن جميع الأعمدة موجودة
+        # التأكد من أن جميع الأعمدة الموجودة في final_columns موجودة
         for col in final_columns:
-            if col not in df:
-                df[col] = 0
-        df = df[final_columns]
+            if col not in input_df:
+                input_df[col] = 0
+        input_df = input_df[final_columns]
 
-        # حساب الاحتمال
-        prob = model.predict_proba(df)[0][0]
-
-        # التحقق من وجود NaN في الاحتمال
-        if np.isnan(prob):
-            return jsonify({"error": "Invalid prediction result!"}), 400
-
-        prediction = int(prob < 0.55)
+        # حساب التنبؤ
+        prob = model.predict_proba(input_df)[0][0]
+        prediction = int(prob < 0.55)  # 1 = Fully Paid إذا احتمال التعثر منخفض
 
         # تحديد مستوى المخاطرة بناءً على الاحتمال
         if prob < 0.3:
@@ -98,7 +99,7 @@ def predict():
             risk_level = "High Risk"
 
         # تحويل الـ risk_score إلى نسبة مئوية
-        risk_score = round(prob * 100, 2)  # ضرب في 100 لتحويلها إلى نسبة مئوية
+        risk_score = round(prob * 100, 2)
 
         return jsonify({
             "prediction": prediction,
@@ -110,5 +111,4 @@ def predict():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=8080)
