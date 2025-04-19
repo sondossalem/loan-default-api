@@ -49,6 +49,7 @@ def predict():
         raw_data = request.get_json()
         df = pd.DataFrame([raw_data])
 
+        # معالجة البيانات المدخلة
         df['term'] = df['term'].str.extract(r'(\d+)').astype(int)
         df['home_ownership'] = df['home_ownership'].replace(['NONE', 'ANY'], 'OTHER')
 
@@ -66,14 +67,17 @@ def predict():
                             'initial_list_status', 'application_type', 'zip_code']
         df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
 
+        # التأكد من أن جميع الأعمدة موجودة
         for col in final_columns:
             if col not in df:
                 df[col] = 0
         df = df[final_columns]
 
+        # حساب الاحتمال
         prob = model.predict_proba(df)[0][0]
         prediction = int(prob < 0.55)
 
+        # تحديد مستوى المخاطرة بناءً على الاحتمال
         if prob < 0.3:
             risk_level = "Low Risk"
         elif prob < 0.6:
@@ -81,9 +85,12 @@ def predict():
         else:
             risk_level = "High Risk"
 
+        # تحويل الـ risk_score إلى نسبة مئوية
+        risk_score = round(prob * 100, 2)  # ضرب في 100 لتحويلها إلى نسبة مئوية
+
         return jsonify({
             "prediction": prediction,
-            "risk_score": float(round(prob, 4)),
+            "risk_score": f"{risk_score}%",  # إضافة الـ % بعد النسبة المئوية
             "risk_level": risk_level
         })
 
