@@ -49,18 +49,19 @@ def predict():
         raw_data = request.get_json()
         df = pd.DataFrame([raw_data])
 
-        # معالجة البيانات المدخلة
+        # تحويل 'term' إلى رقم باستخدام str.extract
         df['term'] = df['term'].str.extract(r'(\d+)').astype(int)
-        df['home_ownership'] = df['home_ownership'].replace(['NONE', 'ANY'], 'OTHER')
 
-        df['credit_age'] = 2013 - pd.to_datetime(df['earliest_cr_line'], errors='coerce').dt.year
-        df['issue_d'] = pd.to_datetime(df['issue_d'], format='%b-%Y')
-        df['loan_issue_year'] = df['issue_d'].dt.year
-        df['loan_issue_month'] = df['issue_d'].dt.month
-        df['zip_code'] = df['address'].str.extract(r'(\d{5})$')
+        # تحويل 'earliest_cr_line' إلى تاريخ واستخراج 'credit_age'
+        df['earliest_cr_line'] = pd.to_datetime(df['earliest_cr_line'], errors='coerce')
+        df['credit_age'] = 2013 - df['earliest_cr_line'].dt.year  # حساب العمر الائتماني بناءً على السنة
 
+        # استخراج 'zip_code' من 'address' (آخر 5 أرقام)
+        df['zip_code'] = df['address'].apply(lambda x: x[-5:])
+
+        # باقي العمليات على الأعمدة
         drop_cols = ['grade', 'emp_length', 'emp_title', 'title', 'revol_bal', 'pub_rec_bankruptcies',
-                     'earliest_cr_line', 'issue_d', 'address']
+                     'earliest_cr_line', 'address']
         df.drop(columns=drop_cols, inplace=True, errors='ignore')
 
         categorical_cols = ['sub_grade', 'home_ownership', 'verification_status', 'purpose',
