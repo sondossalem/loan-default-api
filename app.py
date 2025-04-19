@@ -40,6 +40,7 @@ final_columns = [
     'sub_grade_E2', 'sub_grade_E3', 'sub_grade_E4', 'sub_grade_E5',
     'home_ownership_OTHER', 'home_ownership_OWN', 'home_ownership_RENT',
     'verification_status_Source Verified', 'verification_status_Verified',
+    'verification_status_Not Verified',
     'purpose_credit_card', 'purpose_debt_consolidation', 'purpose_educational',
     'purpose_home_improvement', 'purpose_house', 'purpose_major_purchase',
     'purpose_medical', 'purpose_moving', 'purpose_other',
@@ -57,7 +58,6 @@ def home():
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
-        # استلام البيانات المدخلة
         data = request.get_json()
         input_df = pd.DataFrame([data])
 
@@ -66,7 +66,7 @@ def predict():
             if col not in input_df.columns:
                 return jsonify({"error": f"Missing column: {col}"}), 400
 
-        # خطوات التجهيز المسبق (نفس خطوات التدريب)
+        # معالجة الأعمدة المدخلة
         input_df['term'] = input_df['term'].str.extract(r'(\d+)').astype(int)
         input_df['home_ownership'] = input_df['home_ownership'].replace(['NONE', 'ANY'], 'OTHER')
 
@@ -74,15 +74,11 @@ def predict():
         input_df['earliest_cr_line'] = pd.to_datetime(input_df['earliest_cr_line'], format='%B %Y', errors='coerce')
         input_df['issue_d'] = pd.to_datetime(input_df['issue_d'], format='%B %Y', errors='coerce')
 
-        # حساب العمر الائتماني بناءً على التاريخ المحول
-        input_df['credit_age'] = 2013 - input_df['earliest_cr_line'].dt.year
+        # التحقق من وجود NaT في التواريخ
+        if input_df['earliest_cr_line'].isnull().any() or input_df['issue_d'].isnull().any():
+            return jsonify({"error": "Invalid date format for 'earliest_cr_line' or 'issue_d'"}), 400
 
-        # استخراج الرمز البريدي
-        input_df['zip_code'] = input_df['address'].apply(lambda x: x[-5:])
-        input_df['loan_issue_year'] = input_df['issue_d'].dt.year
-        input_df['loan_issue_month'] = input_df['issue_d'].dt.month
-
-        # تحويل الأعمدة الفئوية إلى 1 و 0 باستخدام get_dummies
+        # إضافة الأعمدة الفئوية باستخدام get_dummies
         categorical_cols = ['sub_grade', 'home_ownership', 'verification_status', 'purpose', 
                             'initial_list_status', 'application_type', 'zip_code']
         input_df = pd.get_dummies(input_df, columns=categorical_cols, drop_first=True)
@@ -93,7 +89,7 @@ def predict():
                 input_df[col] = 0
         input_df = input_df[final_columns]
 
-        # حساب التنبؤ
+        # التنبؤ بحساب الاحتمال
         prob = model.predict_proba(input_df)[0][0]
 
         # التحقق من وجود NaN في الاحتمال
