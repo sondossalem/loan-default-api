@@ -9,7 +9,6 @@ import os
 app = Flask(__name__)
 CORS(app)  # ✅ تفعيل CORS للسماح للواجهة تتواصل
 
-# اسم ملف الموديل داخل الملف المضغوط
 model_filename = "xgb_pipeline_model.pkl"
 
 # فك ضغط Model.zip لاستخراج الموديل إذا لم يكن موجودًا
@@ -20,7 +19,7 @@ if not os.path.exists(model_filename):
 with open(model_filename, "rb") as f:
     model = pickle.load(f)
 
-# الأعمدة التي يتوقعها الموديل بالتحديد
+# الأعمدة المتوقعة
 expected_columns = [
     "loan_amnt", "term", "int_rate", "sub_grade", "home_ownership", "annual_inc",
     "verification_status", "purpose", "dti", "open_acc", "pub_rec", "revol_util",
@@ -28,7 +27,6 @@ expected_columns = [
     "loan_issue_month", "credit_age", "zip_code"
 ]
 
-# الأعمدة التي تم ترميزها خلال التدريب (بعد get_dummies)
 final_columns = [
     'loan_amnt', 'term', 'int_rate', 'annual_inc', 'dti', 'open_acc', 'pub_rec',
     'revol_util', 'mort_acc', 'credit_age', 'loan_issue_year', 'loan_issue_month',
@@ -50,14 +48,9 @@ final_columns = [
     'zip_code_70466', 'zip_code_86630', 'zip_code_93700'
 ]
 
-@app.route("/")
-def home():
-    return "Model API is running!"
-
 @app.route("/predict", methods=["POST"])
 def predict():
     try:
-        # استلام البيانات المدخلة
         data = request.get_json()
         input_df = pd.DataFrame([data])
 
@@ -66,21 +59,21 @@ def predict():
             if col not in input_df.columns:
                 return jsonify({"error": f"Missing column: {col}"}), 400
 
-        # خطوات التجهيز المسبق (نفس خطوات التدريب)
+        # خطوات التجهيز المسبق
         input_df['term'] = input_df['term'].str.extract(r'(\d+)').astype(int)
         input_df['home_ownership'] = input_df['home_ownership'].replace(['NONE', 'ANY'], 'OTHER')
         input_df['credit_age'] = 2013 - pd.to_datetime(input_df['earliest_cr_line'], errors='coerce').dt.year
         input_df['zip_code'] = input_df['address'].apply(lambda x: x[-5:])
-        input_df['issue_d'] = pd.to_datetime(input_df['issue_d'], format='%b-%Y')
+        input_df['issue_d'] = pd.to_datetime(input_df['issue_d'], format='%b-%Y', errors='coerce')
         input_df['loan_issue_year'] = input_df['issue_d'].dt.year
         input_df['loan_issue_month'] = input_df['issue_d'].dt.month
 
-        # تحويل الأعمدة التصنيفية إلى 1 و 0 باستخدام get_dummies
+        # تحويل الأعمدة الفئوية
         categorical_cols = ['sub_grade', 'home_ownership', 'verification_status', 'purpose', 
                             'initial_list_status', 'application_type', 'zip_code']
         input_df = pd.get_dummies(input_df, columns=categorical_cols, drop_first=True)
 
-        # التأكد من أن جميع الأعمدة الموجودة في final_columns موجودة
+        # التأكد من وجود جميع الأعمدة المطلوبة
         for col in final_columns:
             if col not in input_df:
                 input_df[col] = 0
@@ -88,9 +81,12 @@ def predict():
 
         # حساب التنبؤ
         prob = model.predict_proba(input_df)[0][0]
-        prediction = int(prob < 0.55)  # 1 = Fully Paid إذا احتمال التعثر منخفض
+        if np.isnan(prob):
+            return jsonify({"error": "Invalid prediction result!"}), 400
 
-        # تحديد مستوى المخاطرة بناءً على الاحتمال
+        prediction = int(prob < 0.55)  # 1 = Fully Paid
+
+        # تحديد مستوى المخاطرة
         if prob < 0.3:
             risk_level = "Low Risk"
         elif prob < 0.6:
@@ -103,7 +99,7 @@ def predict():
 
         return jsonify({
             "prediction": prediction,
-            "risk_score": f"{risk_score}%",  # إضافة الـ % بعد النسبة المئوية
+            "risk_score": f"{risk_score}%",
             "risk_level": risk_level
         })
 
