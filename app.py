@@ -54,7 +54,7 @@ def predict():
         raw_data = request.get_json()  
 
         # Step 2: Check if all required columns are present
-        required_columns = ['loan_amnt', 'term', 'int_rate', 'annual_inc', 'home_ownership', 'verification_status', 'purpose', 'issue_d', 'address']
+        required_columns = ['loan_amnt', 'term', 'int_rate', 'annual_inc', 'home_ownership', 'verification_status', 'purpose', 'address']
         for column in required_columns:
             if column not in raw_data:
                 return jsonify({"error": f"Missing required field: {column}"}), 400
@@ -69,11 +69,6 @@ def predict():
         # Handle earliest_cr_line date and calculate credit_age
         df['earliest_cr_line'] = pd.to_datetime(df['earliest_cr_line'], errors='coerce')
         df['credit_age'] = 2013 - df['earliest_cr_line'].dt.year  # Calculate credit age as the difference from 2013
-
-        # Handle issue_d date and extract loan issue year and month
-        df['issue_d'] = pd.to_datetime(df['issue_d'], format='%b-%Y')
-        df['loan_issue_year'] = df['issue_d'].dt.year
-        df['loan_issue_month'] = df['issue_d'].dt.month
 
         # Extract zip code from address (last 5 digits)
         df['zip_code'] = df['address'].apply(lambda x: x[-5:])
