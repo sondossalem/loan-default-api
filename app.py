@@ -10,7 +10,7 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-model_filename = "xgb_pipeline_model.pkl"
+model_filename = "xgb_model.pkl"
 
 # Check if model file exists, otherwise extract it from the zip
 if not os.path.exists(model_filename):
@@ -52,7 +52,7 @@ def predict():
     try:
         # Step 1: Get data from the POST request
         raw_data = request.get_json()  
-        
+
         # Step 2: Check if all required columns are present
         required_columns = ['loan_amnt', 'term', 'int_rate', 'annual_inc', 'home_ownership', 'verification_status', 'purpose', 'issue_d', 'address']
         for column in required_columns:
@@ -96,19 +96,19 @@ def predict():
 
         # Step 4: Make the prediction
         prob = model.predict_proba(df)[0][0]  # Get the probability of default
-        prediction = int(prob < 0.55)  # Default prediction: 1 if probability < 0.55
+        prediction = 0  # Default prediction: assume "Low Risk" initially
 
         # Step 5: Calculate risk score and risk level
         risk_score = prob * 100  # Calculate risk score as a percentage
         risk_score = round(risk_score, 2)  # Round to two decimal places
 
         # Determine risk level based on probability
-        if prob < 0.3:
-            risk_level = "Low Risk"
-        elif prob < 0.6:
-            risk_level = "Moderate Risk"
+        if prob > 0.5:
+            risk_level = "High Risk (Charge-Off)"
+            prediction = 1  # High Risk (Charge-Off)
         else:
-            risk_level = "High Risk"
+            risk_level = "Low Risk (Fully-Bet)"
+            prediction = 0  # Low Risk (Fully-Bet)
 
         # Return prediction and risk information as JSON
         return jsonify({
