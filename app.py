@@ -24,7 +24,7 @@ with open(model_filename, "rb") as f:
 # Define the columns that the model expects (final columns)
 final_columns = [
     'loan_amnt', 'term', 'int_rate', 'annual_inc', 'dti', 'open_acc', 'pub_rec',
-    'revol_util', 'mort_acc', 'credit_age', 'loan_issue_year', 'loan_issue_month',
+    'revol_util', 'mort_acc', 'credit_age',
     'sub_grade_A2', 'sub_grade_A3', 'sub_grade_A4', 'sub_grade_A5',
     'sub_grade_B1', 'sub_grade_B2', 'sub_grade_B3', 'sub_grade_B4',
     'sub_grade_B5', 'sub_grade_C1', 'sub_grade_C2', 'sub_grade_C3',
